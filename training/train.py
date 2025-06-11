@@ -114,7 +114,7 @@ class Trainer:
 
     def _init_losses(self):
         """初始化损失函数"""
-        loss_config = self.config['loss']
+        loss_config = self.config['training']['loss']
 
         self.gan_loss = GANLoss(
             lambda_gp=loss_config['lambda_gp'],
@@ -130,7 +130,7 @@ class Trainer:
 
     def _init_optimizers(self):
         """初始化优化器"""
-        optim_config = self.config['optimizer']
+        optim_config = self.config['training']['optimizer']
 
         self.g_optimizer = optim.Adam(
             self.generator.parameters(),
