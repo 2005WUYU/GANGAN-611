@@ -1,0 +1,23 @@
+# 基础依赖
+torch>=1.9.0
+torch-geometric>=2.0.0
+numpy>=1.19.2
+scipy>=1.6.0
+pandas>=1.2.0
+tqdm>=4.50.0
+pyyaml>=5.4.1
+
+# 数据处理
+nibabel>=3.2.0
+scikit-learn>=0.24.0
+
+# 可视化（如果需要）
+# matplotlib>=3.3.0
+# nilearn>=0.8.0
+# vedo>=2022.1.0
+
+# 开发工具
+pytest>=6.2.0
+black>=21.5b2
+flake8>=3.9.0
+mypy>=0.910

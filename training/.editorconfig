@@ -1,0 +1,97 @@
+# GAT-GAN Configuration
+
+# 数据处理相关配置
+data:
+  # FreeSurfer相关
+  freesurfer:
+    subjects_dir: "/path/to/subjects"  # FreeSurfer subjects目录
+    n_jobs: 4  # 并行处理作业数
+    save_intermediate: true  # 是否保存中间文件
+
+  # 图数据处理
+  graph:
+    input_dir: "/path/to/freesurfer/output"  # FreeSurfer输出目录
+    output_dir: "/path/to/processed/data"  # 处理后的.pt文件保存目录
+    normalize_method: "zscore"  # 特征归一化方法 ('zscore' 或 'minmax')
+    include_edge_features: true  # 是否包含边特征
+    include_normals: true  # 是否包含法向量特征
+
+  # 数据集划分
+  dataset:
+    train_ratio: 0.8
+    val_ratio: 0.1
+    batch_size: 32
+    num_workers: 4
+    shuffle: true
+
+# 模型相关配置
+model:
+  # 输入特征维度
+  in_channels: 6  # 3(xyz坐标) + 3(形态特征: curv, sulc, thickness)
+
+  # 生成器配置
+  generator:
+    hidden_channels: [32, 64, 128, 256]
+    pool_ratios: [0.8, 0.6, 0.4]  # 池化比例
+    gat_heads: 4  # GAT注意力头数
+    dropout: 0.2
+    use_edge_attr: true
+
+  # 判别器配置
+  discriminator:
+    hidden_channels: [64, 128, 256, 512]
+    patch_method: "region"  # 'region' 或 'random'
+    num_patches: 64  # 使用random方法时的patch数量
+    use_spectral_norm: true
+    dropout: 0.2
+
+# 训练相关配置
+training:
+  # 基本训练参数
+  n_epochs: 200
+  n_critic: 5  # 判别器训练步数/生成器训练步数
+
+  # 优化器配置
+  optimizer:
+    g_lr: 0.0002  # 生成器学习率
+    d_lr: 0.0002  # 判别器学习率
+    beta1: 0.5
+    beta2: 0.999
+
+  # 损失函数权重
+  loss:
+    lambda_gp: 10.0  # 梯度惩罚系数
+    lambda_recon: 10.0  # 重建损失系数
+    lambda_spec: 1.0  # 谱距离损失系数
+    spectral_k: 10  # 谱距离使用的特征值数量
+
+  # 模型保存
+  checkpoint:
+    save_freq: 10  # 每多少个epoch保存一次
+    output_dir: "checkpoints"
+    save_best_only: true
+
+  # 日志配置
+  logging:
+    log_dir: "logs"
+    tensorboard: true
+    log_freq: 100  # 每多少个batch记录一次
+
+# 推理相关配置
+inference:
+  # 模型加载
+  checkpoint_path: "checkpoints/best_model.pt"
+
+  # 异常评分配置
+  scoring:
+    spectral_k: 10  # 谱距离使用的特征值数量
+    score_weights:  # 各类分数的权重
+      l1: 1.0
+      spectral: 1.0
+      adversarial: 1.0
+    region_method: "mean"  # 区域聚合方法 ('mean', 'max', 'median')
+
+  # 输出配置
+  output:
+    save_recon: true  # 是否保存重建结果
+    output_dir: "results"
