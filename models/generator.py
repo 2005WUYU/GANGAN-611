@@ -16,12 +16,11 @@ class GATConvBlock(nn.Module):
         """GAT卷积块"""
         super().__init__()
         print(f"[GATConvBlock INIT] in_channels={in_channels}, out_channels={out_channels}, heads={heads}")
-        # 修改这里：确保输出维度总数保持为out_channels
         self.gat = GATConv(
             in_channels, 
-            out_channels // heads,  # 每个头的输出维度
+            out_channels // heads,  
             heads=heads, 
-            concat=True  # 使用concat模式，最终输出维度为 (out_channels // heads) * heads
+            concat=True  
         )
         
     def forward(self, x, edge_index, edge_attr=None):
@@ -57,7 +56,6 @@ class DecoderBlock(nn.Module):
         """解码器块"""
         super().__init__()
         print(f"[DecoderBlock INIT] in_channels={in_channels}, skip_channels={skip_channels}, out_channels={out_channels}")
-        # 修改这里：正确计算输入维度
         total_in_channels = in_channels + skip_channels
         self.conv = GATConvBlock(total_in_channels, out_channels, heads)
         
@@ -93,7 +91,6 @@ class Generator(nn.Module):
             encoder_out_channels.append(h_dim)
             curr_channels = h_dim
             
-        # 瓶颈
         print(f"  [Generator] Add Bottleneck: in={hidden_channels[-2]}, out={hidden_channels[-1]}")
         self.bottleneck = GATConvBlock(hidden_channels[-2], hidden_channels[-1], heads)
         
