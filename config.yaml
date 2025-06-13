@@ -1,0 +1,31 @@
+model:
+  in_channels: 6  # 输入特征维度
+  generator:
+    hidden_channels: [32, 64, 128, 256]  # 隐藏层维度
+    pool_ratios: [0.8, 0.6, 0.4]  # 池化比例
+    gat_heads: 4  # GAT注意力头数
+  discriminator:
+    hidden_channels: [64, 128, 256, 512]
+    patch_method: "region"
+
+data:
+  dataset:
+    input_dir: "path/to/your/data"
+    train_ratio: 0.8
+    val_ratio: 0.1
+    batch_size: 32
+    num_workers: 4
+
+training:
+  loss:
+    lambda_gp: 10.0
+    lambda_recon: 10.0
+    lambda_spec: 1.0
+    spectral_k: 10
+  optimizer:
+    g_lr: 0.0002
+    d_lr: 0.0002
+    beta1: 0.5
+    beta2: 0.999
+  checkpoint:
+    output_dir: "checkpoints"
