@@ -68,16 +68,19 @@ class Trainer:
         """初始化模型"""
         model_config = self.config['model']
 
+        # 初始化生成器
         self.generator = Generator(
             in_channels=model_config['in_channels'],
-            hidden_channels=model_config['generator_channels'],
-            heads=model_config['gat_heads']
+            hidden_channels=model_config['generator']['hidden_channels'],
+            pool_ratios=model_config['generator']['pool_ratios'],
+            heads=model_config['generator']['gat_heads']
         ).to(self.device)
 
+        # 初始化判别器
         self.discriminator = PatchDiscriminator(
             in_channels=model_config['in_channels'],
-            hidden_channels=model_config['discriminator_channels'],
-            patch_method=model_config['patch_method']
+            hidden_channels=model_config['discriminator']['hidden_channels'],
+            patch_method=model_config['discriminator']['patch_method']
         ).to(self.device)
 
     def _init_datasets(self):
