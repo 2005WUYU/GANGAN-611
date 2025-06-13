@@ -7,15 +7,18 @@ class GATConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, heads=4, dropout=0.2, batch_norm=True):
         super().__init__()
         print(f"[GATConvBlock INIT] in_channels={in_channels}, out_channels={out_channels}, heads={heads}")
+        # 确保输入维度能够被heads整除
+        self.out_channels_per_head = out_channels // heads
         self.gat = GATConv(
             in_channels=in_channels,
-            out_channels=out_channels // heads,
+            out_channels=self.out_channels_per_head,
             heads=heads,
             dropout=dropout,
             concat=True
         )
         self.batch_norm = nn.BatchNorm1d(out_channels) if batch_norm else None
         self.activation = nn.LeakyReLU(0.2)
+
     def forward(self, x, edge_index, edge_attr=None):
         print(f"[GATConvBlock FORWARD] x.shape={x.shape}")
         x = self.gat(x, edge_index, edge_attr)
@@ -31,6 +34,7 @@ class EncoderBlock(nn.Module):
         print(f"[EncoderBlock INIT] in_channels={in_channels}, out_channels={out_channels}, pool_ratio={pool_ratio}")
         self.conv = GATConvBlock(in_channels, out_channels, heads)
         self.pool = TopKPooling(out_channels, ratio=pool_ratio)
+
     def forward(self, x, edge_index, edge_attr=None, batch=None):
         print(f"[EncoderBlock FORWARD] x.shape={x.shape}")
         x = self.conv(x, edge_index, edge_attr)
@@ -44,7 +48,10 @@ class DecoderBlock(nn.Module):
     def __init__(self, in_channels, skip_channels, out_channels, heads=4):
         super().__init__()
         print(f"[DecoderBlock INIT] in_channels={in_channels}, skip_channels={skip_channels}, out_channels={out_channels}")
-        self.conv = GATConvBlock(in_channels + skip_channels, out_channels, heads)
+        # 修改：确保输入维度正确计算
+        total_in_channels = in_channels + skip_channels
+        self.conv = GATConvBlock(total_in_channels, out_channels, heads)
+
     def forward(self, x, x_skip, edge_index, edge_attr=None):
         print(f"[DecoderBlock FORWARD] x.shape={x.shape}, x_skip.shape={x_skip.shape}")
         x = torch.cat([x, x_skip], dim=-1)
@@ -61,6 +68,7 @@ class Generator(nn.Module):
         assert len(pool_ratios) == len(hidden_channels) - 1
         self.in_channels = in_channels
         self.hidden_channels = hidden_channels
+        self.heads = heads
 
         print(f"[Generator INIT] in_channels={in_channels}, hidden_channels={hidden_channels}, pool_ratios={pool_ratios}, heads={heads}")
 
@@ -91,8 +99,10 @@ class Generator(nn.Module):
                 DecoderBlock(in_c, skip_c, out_c, heads)
             )
 
-        print(f"  [Generator] Add OutputLayer: in={hidden_channels[0]}, out={in_channels}")
-        self.output_layer = GATConv(hidden_channels[0], in_channels, heads=1)
+        # 修改：确保输出层的维度正确
+        final_in_channels = hidden_channels[0]  # 32
+        print(f"  [Generator] Add OutputLayer: in={final_in_channels}, out={in_channels}")
+        self.output_layer = GATConv(final_in_channels, in_channels, heads=1, concat=False)
 
     def encode(self, x, edge_index, edge_attr=None, batch=None):
         encoded_features = []
