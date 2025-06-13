@@ -16,7 +16,14 @@ class GATConvBlock(nn.Module):
         """GAT卷积块"""
         super().__init__()
         print(f"[GATConvBlock INIT] in_channels={in_channels}, out_channels={out_channels}, heads={heads}")
-        self.gat = GATConv(in_channels, out_channels // heads, heads=heads)
+        # 确保输出维度正确
+        self.gat = GATConv(
+            in_channels, 
+            out_channels // heads,  # 输出通道数除以头数
+            heads=heads, 
+            concat=True,  # 使用concat模式
+            dropout=0.0
+        )
         
     def forward(self, x, edge_index, edge_attr=None):
         """前向传播"""
@@ -153,20 +160,20 @@ class Generator(nn.Module):
             # 处理节点数不匹配
             if curr_x.size(0) < skip_x.size(0):
                 print(f"[Generator DECODE] Upsample: {curr_x.size(0)} -> {skip_x.size(0)}")
-                # 重复当前节点以匹配skip_x的大小
-                repeat_factor = skip_x.size(0) // curr_x.size(0)
-                remainder = skip_x.size(0) % curr_x.size(0)
-                if remainder == 0:
-                    curr_x = curr_x.repeat_interleave(repeat_factor, dim=0)
-                else:
-                    curr_x = torch.cat([
-                        curr_x.repeat_interleave(repeat_factor, dim=0),
-                        curr_x[:remainder]
-                    ], dim=0)
+                # 使用最近邻插值进行上采样
+                ratio = skip_x.size(0) // curr_x.size(0)
+                curr_x = curr_x.unsqueeze(0)  # [1, N, C]
+                curr_x = curr_x.repeat(ratio, 1, 1)  # [ratio, N, C]
+                curr_x = curr_x.view(-1, curr_x.size(-1))  # [ratio*N, C]
+                
+                # 处理余数
+                if curr_x.size(0) < skip_x.size(0):
+                    remaining = skip_x.size(0) - curr_x.size(0)
+                    curr_x = torch.cat([curr_x, curr_x[:remaining]], dim=0)
             
             # 解码
             curr_x = decoder(curr_x, skip_x, skip_edge_index, skip_edge_attr)
-            
+        
         return curr_x
         
     def forward(self, x, edge_index, edge_attr=None):
