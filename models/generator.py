@@ -16,13 +16,12 @@ class GATConvBlock(nn.Module):
         """GAT卷积块"""
         super().__init__()
         print(f"[GATConvBlock INIT] in_channels={in_channels}, out_channels={out_channels}, heads={heads}")
-        # 确保输出维度正确
+        # 修改这里：确保输出维度总数保持为out_channels
         self.gat = GATConv(
             in_channels, 
-            out_channels // heads,  # 输出通道数除以头数
+            out_channels // heads,  # 每个头的输出维度
             heads=heads, 
-            concat=True,  # 使用concat模式
-            dropout=0.0
+            concat=True  # 使用concat模式，最终输出维度为 (out_channels // heads) * heads
         )
         
     def forward(self, x, edge_index, edge_attr=None):
@@ -45,7 +44,6 @@ class EncoderBlock(nn.Module):
         """前向传播"""
         print(f"[EncoderBlock FORWARD] x.shape={x.shape}")
         x = self.conv(x, edge_index, edge_attr)
-        # 确保batch信息正确
         if batch is None:
             batch = torch.zeros(x.size(0), dtype=torch.long, device=x.device)
         x, edge_index, edge_attr, batch, perm, score = self.pool(
@@ -59,7 +57,9 @@ class DecoderBlock(nn.Module):
         """解码器块"""
         super().__init__()
         print(f"[DecoderBlock INIT] in_channels={in_channels}, skip_channels={skip_channels}, out_channels={out_channels}")
-        self.conv = GATConvBlock(in_channels + skip_channels, out_channels, heads)
+        # 修改这里：正确计算输入维度
+        total_in_channels = in_channels + skip_channels
+        self.conv = GATConvBlock(total_in_channels, out_channels, heads)
         
     def forward(self, x, x_skip, edge_index, edge_attr=None):
         """前向传播"""
@@ -74,14 +74,7 @@ class Generator(nn.Module):
                  hidden_channels: List[int] = [32, 64, 128, 256],
                  pool_ratios: List[float] = [0.8, 0.6, 0.4],
                  heads: int = 4):
-        """
-        图生成器
-        Args:
-            in_channels: 输入特征维度
-            hidden_channels: 隐藏层维度列表
-            pool_ratios: 池化比例列表
-            heads: GAT注意力头数
-        """
+        """图生成器"""
         super().__init__()
         assert len(pool_ratios) == len(hidden_channels) - 1
         
@@ -105,7 +98,7 @@ class Generator(nn.Module):
         self.bottleneck = GATConvBlock(hidden_channels[-2], hidden_channels[-1], heads)
         
         # 解码器
-        skip_channels = encoder_out_channels[::-1]  # 反转编码器输出通道
+        skip_channels = encoder_out_channels[::-1]
         bottleneck_channels = hidden_channels[-1]
         decoder_in_channels = [bottleneck_channels] + skip_channels[:-1]
         decoder_out_channels = skip_channels
@@ -125,7 +118,6 @@ class Generator(nn.Module):
         """编码过程"""
         print(f"[Generator ENCODE] block 0, x.shape={x.shape}")
         
-        # 保存中间特征
         encoded_features = []
         curr_x = x
         curr_edge_index = edge_index
@@ -133,15 +125,12 @@ class Generator(nn.Module):
         curr_batch = batch if batch is not None else torch.zeros(x.size(0), dtype=torch.long, device=x.device)
         
         for idx, encoder in enumerate(self.encoder_blocks):
-            # 保存当前特征用于跳跃连接
             encoded_features.append((curr_x, curr_edge_index, curr_edge_attr, curr_batch))
-            # 编码和池化
             curr_x, curr_edge_index, curr_edge_attr, curr_batch, _, _ = encoder(
                 curr_x, curr_edge_index, curr_edge_attr, curr_batch
             )
             print(f"[Generator ENCODE] block {idx+1}, x.shape={curr_x.shape}")
             
-        # 瓶颈层
         print(f"[Generator ENCODE] bottleneck input x.shape={curr_x.shape}")
         bottleneck = self.bottleneck(curr_x, curr_edge_index, curr_edge_attr)
         print(f"[Generator ENCODE] bottleneck out x.shape={bottleneck.shape}")
@@ -160,18 +149,15 @@ class Generator(nn.Module):
             # 处理节点数不匹配
             if curr_x.size(0) < skip_x.size(0):
                 print(f"[Generator DECODE] Upsample: {curr_x.size(0)} -> {skip_x.size(0)}")
-                # 使用最近邻插值进行上采样
+                # 使用重复插值进行上采样
                 ratio = skip_x.size(0) // curr_x.size(0)
-                curr_x = curr_x.unsqueeze(0)  # [1, N, C]
-                curr_x = curr_x.repeat(ratio, 1, 1)  # [ratio, N, C]
-                curr_x = curr_x.view(-1, curr_x.size(-1))  # [ratio*N, C]
+                curr_x = curr_x.repeat_interleave(ratio, dim=0)
                 
                 # 处理余数
                 if curr_x.size(0) < skip_x.size(0):
                     remaining = skip_x.size(0) - curr_x.size(0)
                     curr_x = torch.cat([curr_x, curr_x[:remaining]], dim=0)
             
-            # 解码
             curr_x = decoder(curr_x, skip_x, skip_edge_index, skip_edge_attr)
         
         return curr_x
